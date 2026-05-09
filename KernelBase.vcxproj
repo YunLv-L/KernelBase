@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{11111111-2222-3333-4444-555555555555}</ProjectGuid>
+    <TemplateGuid>{dd38f7fc-d7bd-488b-9242-7d8754cde80d}</TemplateGuid>
+    <TargetVersion>Windows10</TargetVersion>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <Configuration>Debug</Configuration>
+    <Platform>x64</Platform>
+    <RootNamespace>KernelBase</RootNamespace>
+    <DriverType>WDM</DriverType>
+    <!-- 指定 WDK 版本，务必与 D:\WindowsKit 中的版本一致 -->
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <!-- 输出文件名设为 KernelBase -->
+    <TargetName>KernelBase</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="driver.c" />
+    <ClCompile Include="kernelbase.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="kernelbase.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="exports.def" />
+  </ItemGroup>
+  <PropertyGroup>
+    <Linker_ModuleDefinitionFile>exports.def</Linker_ModuleDefinitionFile>
+  </PropertyGroup>
+  <Import Project="$(WDKBuildRoot)\build\10.0.26100.0\WindowsDriver.common.targets" />
+</Project>
