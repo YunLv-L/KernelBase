@@ -24,3 +24,9 @@
 2. 设置 WDK 根目录环境变量（若 WDK 在其他盘或目录须修改）：
    ```cmd
    set WDKBuildRoot=D:\WindowsKit
+   ```
+3.进入仓库根目录，运行：   
+```cmd
+build.bat
+```
+4.成功后会在 bin\x64\Debug\ 下生成 KernelBase.sys。
