@@ -53,8 +53,6 @@ Many kernel security tools, rootkit detection mechanisms, or calls to non‑expo
 
 ## Signing / 签名
 
-The repository includes a signing script for **test certificates** only.  
-本仓库仅提供**测试证书**签名脚本。  
 For production, use an EV Code Signing Certificate or WHQL attestation signing.  
 生产环境请使用 EV 代码签名证书或 WHQL 证明签名。
 
