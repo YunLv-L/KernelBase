@@ -6,9 +6,15 @@ obj/
 *.lib
 *.exp
 
-# Certificate and private key (DO NOT COMMIT)
-*.pfx
-*.cer
+# Personal certificates (DO NOT COMMIT)
+YunLv.pfx
+YunLv.cer
+YunLv*.txt
+
+# Public test certificates are allowed
+!certs/TestCert.cer
+!certs/TestCert.pfx
+!certs/TestCert_info.txt
 
 # Temporary files
 *.tmp
