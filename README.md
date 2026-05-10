@@ -1,24 +1,25 @@
 # KernelBase
 
-> A minimal Windows kernel driver that exports `GetKernelBase` to retrieve the base address of `ntoskrnl.exe`.  
-> 极简 Windows 内核驱动，导出 `GetKernelBase` 函数，供其他内核模块获取 `ntoskrnl.exe` 基址。
+> A minimal Windows kernel driver that exports helper functions for kernel image base resolution and RVA‑to‑VA conversion.  
+> 极简 Windows 内核驱动，导出内核基址解析与 RVA/VA 转换的辅助函数。
 
 ---
 
 ## Why KernelBase? / 为什么需要 KernelBase？
 
-Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`. This driver isolates that step into a standalone module, so other drivers only need to dynamically obtain the exported function – no need to reinvent the wheel.
+Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe` and the ability to convert relative offsets into absolute addresses. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
 
-很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址。这个驱动把这一步抽离成一个独立模块，其他驱动只需动态获取这个导出函数就行了，不用重复造轮子。
+很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，以及将相对偏移转换为绝对地址。这个驱动把这几步抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
 
 ---
 
 ## Features / 功能
 
-- Exported function / 导出函数：`PVOID GetKernelBase(void)`
-- Returns the load base of `ntoskrnl.exe` in memory (returns `NULL` on failure)  
-  返回 `ntoskrnl.exe` 在内存中的加载基址（失败时返回 `NULL`）
-- Pure kernel export – no device objects, no IOCTL  
+- A helper to retrieve the base address of `ntoskrnl.exe` (`PVOID GetKernelBase(void)`)  
+  获取 `ntoskrnl.exe` 内存基址的辅助函数（`PVOID GetKernelBase(void)`）
+- A helper to convert a relative virtual address (RVA) within the kernel image to an absolute virtual address (VA) (`PVOID GetKernelVaByRva(ULONG_PTR Rva)`)  
+  将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）的辅助函数（`PVOID GetKernelVaByRva(ULONG_PTR Rva)`）
+- Pure kernel exports – no device objects, no IOCTL  
   纯内核导出，无设备对象，无 IOCTL
 
 ---
@@ -118,8 +119,8 @@ PVOID (*GetKernelBase)(void) = (PVOID (*)(void))MmGetSystemRoutineAddress(L"GetK
 
 ### ✅ Correct approach / 正确用法
 
-You need to manually locate `KernelBase.sys` in the system module list and parse its PE export table. The function below does exactly that.  
-你需要手动在系统模块列表中定位 `KernelBase.sys` 并解析它的 PE 导出表。下面的函数就是用来完成这一工作的。
+You need to manually locate `KernelBase.sys` in the system module list and parse its PE export table. The generic helper function below can retrieve **any** exported function from a loaded driver by name.  
+你需要手动在系统模块列表中定位 `KernelBase.sys` 并解析它的 PE 导出表。下面的通用辅助函数可以通过名称获取任意已加载驱动导出的**任何**函数。
 
 ```c
 // Universal helper: get exported function address from a loaded driver
@@ -175,25 +176,27 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
     }
     return funcAddr;
 }
+```
 
-// In your DriverEntry / 在你的 DriverEntry 中
-NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
-{
-    // ...
-    PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
-        GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
+**Then in your `DriverEntry`:**  
+**然后在你的 `DriverEntry` 里：**
 
-    if (!GetKernelBase) {
-        return STATUS_NOT_FOUND;
-    }
+```c
+// Get both helpers
+PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
+    GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
 
+PVOID (*GetKernelVaByRva)(ULONG_PTR) = (PVOID (*)(ULONG_PTR))
+    GetExportFromDriver(L"KernelBase.sys", "GetKernelVaByRva");
+
+if (GetKernelBase && GetKernelVaByRva) {
     PVOID kernelBase = GetKernelBase();
-    if (!kernelBase) {
-        return STATUS_UNSUCCESSFUL;
-    }
-
-    // Now you can use kernelBase...
-    return STATUS_SUCCESS;
+    // Convert a known RVA (e.g., 0x123456) to a usable pointer
+    PVOID funcPtr = GetKernelVaByRva(0x123456);
+    // ...
+}
+else {
+    return STATUS_NOT_FOUND;
 }
 ```
 
