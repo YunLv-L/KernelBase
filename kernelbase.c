@@ -31,3 +31,12 @@ PVOID GetKernelBase(void)
     ExFreePoolWithTag(pModules, 'bKgK');
     return kernelBase;
 }
+
+// 新增：将 ntoskrnl 内的相对虚拟地址(RVA) 转换为绝对虚拟地址(VA)
+PVOID GetKernelVaByRva(ULONG_PTR Rva)
+{
+    PVOID kernelBase = GetKernelBase();
+    if (!kernelBase)
+        return NULL;
+    return (PVOID)((PUCHAR)kernelBase + Rva);
+}

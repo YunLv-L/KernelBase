@@ -21,3 +21,4 @@ typedef struct _RTL_PROCESS_MODULES {
 } RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
 PVOID GetKernelBase(void);
+PVOID GetKernelVaByRva(ULONG_PTR Rva);
