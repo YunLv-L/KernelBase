@@ -51,21 +51,41 @@ Many kernel security tools, rootkit detection, or calling of non‑exported kern
 
 ---
 
-## Signing / 签名  
-For production, use an EV Code Signing Certificate or WHQL attestation signing.  
-生产环境请使用 EV 代码签名证书或 WHQL 证明签名。
+## Signing / 签名
 
-1. Place your `.pfx` certificate (e.g., `MyCert.pfx`) in the project root  
-   将你的 `.pfx` 证书（例如 `MyCert.pfx`）放在项目根目录。
-2. Edit `sign.bat` and update the certificate name and password  
-   编辑 `sign.bat`，修改证书名和密码。
-3. Run `sign.bat` as Administrator  
-   以管理员身份运行 `sign.bat`。
-4. Before loading the driver, enable test signing mode / 加载驱动前，先开启测试签名模式:
-   ```cmd
-   bcdedit /set testsigning on
-   ```
-   Then restart the system / 然后重启系统。
+### Using the provided test certificate / 使用提供的测试证书
+
+A public test certificate is included in the `certs/` folder for development purposes only.  
+`certs/` 文件夹中包含一个公共测试证书，仅用于开发目的。
+
+**DO NOT use this certificate for production. It is publicly shared and its password is `none` (the literal string).**  
+**请勿将此证书用于生产环境。它是公开共享的，密码为 `none`（即字符串 none）。**
+
+To sign with it, simply run:
+使用它签名只需运行：
+
+```cmd
+sign.bat
+```
+
+The script will automatically use `certs\TestCert.pfx` (password: `none`) to sign `KernelBase.sys`.  
+脚本将自动使用 `certs\TestCert.pfx`（密码为 `none`）对 `KernelBase.sys` 进行签名。
+
+### Using your own certificate / 使用你自己的证书
+
+If you prefer to use your own certificate, either:
+如果你想使用自己的证书，可以：
+
+1. Replace `certs\TestCert.pfx` with your own `.pfx` file, or  
+   将 `certs\TestCert.pfx` 替换为你自己的 `.pfx` 文件，或
+2. Edit `sign.bat` and update the `PFX` and `PASSWORD` variables.  
+   编辑 `sign.bat`，更新 `PFX` 和 `PASSWORD` 变量。
+
+Before loading the driver, enable test signing mode / 加载驱动前，先开启测试签名模式:
+```cmd
+bcdedit /set testsigning on
+```
+Then restart the system / 然后重启系统。
 
 ---
 
