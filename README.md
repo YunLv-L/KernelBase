@@ -1,26 +1,36 @@
 # KernelBase
 
-> A minimal Windows kernel driver that exports helper functions for kernel image base resolution and RVA‑to‑VA conversion.  
-> 极简 Windows 内核驱动，导出内核基址解析与 RVA/VA 转换的辅助函数。
+> A minimal Windows kernel driver that exports helper functions for kernel image base resolution, RVA‑to‑VA conversion, module export lookups, address validation, and more.  
+> 极简 Windows 内核驱动，导出内核基址解析、RVA/VA 转换、模块导出查找、地址验证等多种辅助函数。
 
 ---
 
 ## Why KernelBase? / 为什么需要 KernelBase？
 
-Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe` and the ability to convert relative offsets into absolute addresses. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
+Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, and a way to resolve functions from other kernel modules. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
 
-很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，以及将相对偏移转换为绝对地址。这个驱动把这几步抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
+很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，以及从其他内核模块解析函数。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
 
 ---
 
 ## Features / 功能
 
-- A helper to retrieve the base address of `ntoskrnl.exe` (`PVOID GetKernelBase(void)`)  
-  获取 `ntoskrnl.exe` 内存基址的辅助函数（`PVOID GetKernelBase(void)`）
-- A helper to convert a relative virtual address (RVA) within the kernel image to an absolute virtual address (VA) (`PVOID GetKernelVaByRva(ULONG_PTR Rva)`)  
-  将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）的辅助函数（`PVOID GetKernelVaByRva(ULONG_PTR Rva)`）
-- Pure kernel exports – no device objects, no IOCTL  
-  纯内核导出，无设备对象，无 IOCTL
+- `GetKernelBase` – Returns the base address of `ntoskrnl.exe`.  
+  获取 `ntoskrnl.exe` 的内存基址。
+- `GetKernelVaByRva` – Converts a relative virtual address (RVA) inside the kernel image to an absolute virtual address (VA).  
+  将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）。
+- `GetKernelExportByName` – Retrieves the absolute address of any exported function from a loaded kernel module (e.g., `hal.dll`, `win32k.sys`).  
+  从任意已加载的内核模块获取导出函数的绝对地址（如 `hal.dll`、`win32k.sys`）。
+- `IsAddressInKernelImage` – Checks whether a given address falls within the memory range of `ntoskrnl.exe`.  
+  检查给定地址是否位于 `ntoskrnl.exe` 的内存范围内。
+- `IsKernelAddress` – Checks whether an address belongs to kernel space (x64).  
+  检查地址是否属于内核空间（x64）。
+- `GetKernelSectionByName` – Returns the base address and size of a named PE section within `ntoskrnl.exe` (e.g., `.text`, `.data`).  
+  返回 `ntoskrnl.exe` 内指定名称的 PE 节区的基址和大小（如 `.text`, `.data`）。
+- `IsPatchGuardEnabled` – Diagnostic helper that indicates whether PatchGuard is currently active.  
+  诊断辅助函数，指示 PatchGuard 当前是否激活。
+- Pure kernel exports – no device objects, no IOCTL.  
+  纯内核导出，无设备对象，无 IOCTL。
 
 ---
 
@@ -178,21 +188,23 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
 }
 ```
 
-**Then in your `DriverEntry`:**  
-**然后在你的 `DriverEntry` 里：**
+**Then in your `DriverEntry` / 然后在你的 `DriverEntry` 里:**
 
 ```c
-// Get both helpers
+// Retrieve all needed helpers
 PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
     GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
+PVOID (*GetKernelExportByName)(PCWSTR, PCSTR) = (PVOID (*)(PCWSTR, PCSTR))
+    GetExportFromDriver(L"KernelBase.sys", "GetKernelExportByName");
+PVOID (*IsAddressInKernelImage)(PVOID) = (PVOID (*)(PVOID))
+    GetExportFromDriver(L"KernelBase.sys", "IsAddressInKernelImage");
+BOOLEAN (*IsPatchGuardEnabled)(void) = (BOOLEAN (*)(void))
+    GetExportFromDriver(L"KernelBase.sys", "IsPatchGuardEnabled");
+// ... add others as needed
 
-PVOID (*GetKernelVaByRva)(ULONG_PTR) = (PVOID (*)(ULONG_PTR))
-    GetExportFromDriver(L"KernelBase.sys", "GetKernelVaByRva");
-
-if (GetKernelBase && GetKernelVaByRva) {
+if (GetKernelBase && GetKernelExportByName) {
     PVOID kernelBase = GetKernelBase();
-    // Convert a known RVA (e.g., 0x123456) to a usable pointer
-    PVOID funcPtr = GetKernelVaByRva(0x123456);
+    PVOID someFunc = GetKernelExportByName(L"hal.dll", "HalGetBusData");
     // ...
 }
 else {
