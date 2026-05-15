@@ -1,3 +1,8 @@
 EXPORTS
     GetKernelBase
     GetKernelVaByRva
+    GetKernelExportByName
+    IsAddressInKernelImage
+    IsKernelAddress
+    GetKernelSectionByName
+    IsPatchGuardEnabled

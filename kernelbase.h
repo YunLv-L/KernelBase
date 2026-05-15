@@ -1,7 +1,7 @@
 #pragma once
 #include <ntddk.h>
 
-// 手动定义所需结构体（确保在任何 WDK 版本下都可编译）
+// 手动定义所需结构体
 typedef struct _RTL_PROCESS_MODULE_INFORMATION {
     HANDLE Section;
     PVOID MappedBase;
@@ -20,5 +20,13 @@ typedef struct _RTL_PROCESS_MODULES {
     RTL_PROCESS_MODULE_INFORMATION Modules[1];
 } RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
+// 原有
 PVOID GetKernelBase(void);
 PVOID GetKernelVaByRva(ULONG_PTR Rva);
+
+// v1.2.0 新增
+PVOID GetKernelExportByName(PCWSTR ModuleName, PCSTR FunctionName);
+BOOLEAN IsAddressInKernelImage(PVOID Address);
+BOOLEAN IsKernelAddress(PVOID Address);
+PVOID GetKernelSectionByName(PCSTR SectionName, PULONG SectionSize);
+BOOLEAN IsPatchGuardEnabled(void);

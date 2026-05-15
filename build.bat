@@ -17,7 +17,7 @@ if not defined VSINSTALLDIR (
 )
 
 rem Compiler options: /wd4996 silences ExAllocatePoolWithTag deprecation warning
-set CL_OPTS=/nologo /Gz /GS- /EHa- /kernel /W4 /WX /wd4996 /O2 /D"_AMD64_" /D"_WIN64" /D"NDEBUG"
+set CL_OPTS=/nologo /Gz /GS- /EHa- /kernel /W4 /WX /wd4996 /wd4819 /O2 /D"_AMD64_" /D"_WIN64" /D"NDEBUG"
 set CL_INCLUDES=/I"%INC_KM%" /I"%INC_SHARED%" /I"%INC_UCRT%"
 set LINK_OPTS=/nologo /machine:%ARCH% /subsystem:native /driver /entry:DriverEntry
 

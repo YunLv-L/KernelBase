@@ -14,9 +14,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     PVOID base = GetKernelBase();
     DbgPrint("[KernelBase] Loaded, kernel base: 0x%p\n", base);
 
-    // 可选：可以在这里自测一下 RVA 转换
-    // PVOID testVa = GetKernelVaByRva(0);
-    // DbgPrint("[KernelBase] Test RVA 0 -> VA: 0x%p\n", testVa);
+    // 可选：快速自检新功能
+    ULONG textSize = 0;
+    PVOID textAddr = GetKernelSectionByName(".text", &textSize);
+    DbgPrint("[KernelBase] .text section at 0x%p, size 0x%lx\n", textAddr, textSize);
+
+    BOOLEAN pg = IsPatchGuardEnabled();
+    DbgPrint("[KernelBase] PatchGuard enabled: %d\n", pg);
 
     return STATUS_SUCCESS;
 }
