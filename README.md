@@ -1,66 +1,65 @@
 # KernelBase
 
-> A lightweight Windows kernel driver that exports helpers for kernel image analysis, module export resolution, module information queries, and safe memory access.  
-> 轻量 Windows 内核驱动，导出内核映像分析、模块导出解析、模块信息查询及安全内存访问等辅助函数。
+> A lightweight Windows kernel driver that exports helpers for kernel image analysis, module export resolution, module information queries, safe memory access, and access to un‑exported kernel internals.  
+> 轻量 Windows 内核驱动，导出内核映像分析、模块导出解析、模块信息查询、安全内存访问及未导出内核内部函数访问等辅助函数。
 
 ---
 
 ## Why KernelBase? / 为什么需要 KernelBase？
 
-Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, resolve functions from other kernel modules, obtain module information, and safely read kernel memory. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
+Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, resolve functions from other kernel modules, obtain module information, safely read and write kernel memory, and even access previously un‑exported internal routines. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
 
-很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，从其他内核模块解析函数，获取模块信息，以及安全地读取内核内存。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
+很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，从其他内核模块解析函数，获取模块信息，安全地读写内核内存，甚至访问此前未公开的内部例程。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
 
 ---
 
 ## Features / 功能
 
-- `GetKernelBase` – Returns the base address of `ntoskrnl.exe`.  
-  获取 `ntoskrnl.exe` 的内存基址。
-- `GetKernelVaByRva` – Converts a relative virtual address (RVA) inside the kernel image to an absolute virtual address (VA).  
-  将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）。
-- `GetKernelExportByName` – Retrieves the absolute address of any exported function from a loaded kernel module (e.g., `hal.dll`, `win32k.sys`).  
-  从任意已加载的内核模块获取导出函数的绝对地址（如 `hal.dll`、`win32k.sys`）。
-- `IsAddressInKernelImage` – Checks whether a given address falls within the memory range of `ntoskrnl.exe`.  
-  检查给定地址是否位于 `ntoskrnl.exe` 的内存范围内。
-- `IsKernelAddress` – Checks whether an address belongs to kernel space (x64).  
-  检查地址是否属于内核空间（x64）。
-- `GetKernelSectionByName` – Returns the base address and size of a named PE section within `ntoskrnl.exe` (e.g., `.text`, `.data`).  
-  返回 `ntoskrnl.exe` 内指定名称的 PE 节区的基址和大小（如 `.text`, `.data`）。
-- `IsPatchGuardEnabled` – Diagnostic helper that indicates whether PatchGuard is currently active.  
-  诊断辅助函数，指示 PatchGuard 当前是否激活。
-- `GetModuleBaseByName` – Returns the load base of a specified kernel module (e.g., `hal.dll`).  
-  返回指定内核模块的加载基址（如 `hal.dll`）。
-- `GetModuleSizeByName` – Returns the image size of a specified kernel module.  
-  返回指定内核模块的映像大小。
-- `GetSystemModuleCount` – Returns the total number of currently loaded kernel modules.  
-  返回当前已加载内核模块的总数。
-- `IsAddressInModule` – Checks whether an address falls within the memory range of a specified loaded kernel module.  
-  检查地址是否在指定的已加载内核模块内存范围内。
-- `SafeReadKernelMemory` – Safely reads kernel memory with exception protection; returns an error instead of crashing on invalid addresses.  
-  带异常保护的安全内核内存读取；遇到无效地址时返回错误而非崩溃。
-- `GetDriverObjectByName` – Returns the DRIVER_OBJECT pointer of a loaded driver by its service name.  
-  通过服务名返回已加载驱动的 DRIVER_OBJECT 指针。
-- Pure kernel exports – no device objects, no IOCTL.  
-  纯内核导出，无设备对象，无 IOCTL。
+Functions are categorized by risk level to help you use them safely.  
+函数按风险等级分类，以帮助你安全使用。
 
-## ⚠️ High‑Risk Functions / 高危函数警告
+### ✅ Safe / 安全（可任意调用 / Safe to call anytime）
 
-Starting from v1.4.0, some exported functions access low‑level kernel structures and may cause system instability if misused.  
-从 v1.4.0 开始，部分导出函数将访问底层内核结构，若使用不当可能导致系统不稳定。
+| Function | Description |
+|----------|-------------|
+| `GetKernelBase` | Returns the base address of `ntoskrnl.exe`. / 获取 `ntoskrnl.exe` 的内存基址。 |
+| `GetKernelVaByRva` | Converts a relative virtual address (RVA) inside the kernel image to an absolute virtual address (VA). / 将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）。 |
+| `GetKernelExportByName` | Retrieves the absolute address of any exported function from a loaded kernel module (e.g., `hal.dll`, `win32k.sys`). / 从任意已加载的内核模块获取导出函数的绝对地址（如 `hal.dll`、`win32k.sys`）。 |
+| `IsAddressInKernelImage` | Checks whether a given address falls within the memory range of `ntoskrnl.exe`. / 检查给定地址是否位于 `ntoskrnl.exe` 的内存范围内。 |
+| `IsKernelAddress` | Checks whether an address belongs to kernel space (x64). / 检查地址是否属于内核空间（x64）。 |
+| `GetKernelSectionByName` | Returns the base address and size of a named PE section within `ntoskrnl.exe` (e.g., `.text`, `.data`). / 返回 `ntoskrnl.exe` 内指定名称的 PE 节区的基址和大小（如 `.text`, `.data`）。 |
+| `GetModuleBaseByName` | Returns the load base of a specified kernel module (e.g., `hal.dll`). / 返回指定内核模块的加载基址（如 `hal.dll`）。 |
+| `GetSystemModuleCount` | Returns the total number of currently loaded kernel modules. / 返回当前已加载内核模块的总数。 |
 
-**`SafeReadKernelMemory`** is protected against most invalid addresses, but reading from paged‑out memory at elevated IRQL can still cause a crash.  
-**`SafeReadKernelMemory`** 已对无效地址进行保护，但在高 IRQL 下读取已换出的分页内存仍可能引发崩溃。
+### ⚠️ Moderate / 中危（返回敏感对象或需注意使用条件 / Returns sensitive objects or requires caution）
 
-- Always test in a debugging environment with crash dump enabled.  
-  请始终在已启用崩溃转储的调试环境中测试。
-- Keep IRQL at PASSIVE_LEVEL or APC_LEVEL when using SafeReadKernelMemory.  
-  使用 SafeReadKernelMemory 时，请保持 IRQL 为 PASSIVE_LEVEL 或 APC_LEVEL。
-- Do not modify the returned DRIVER_OBJECT pointer; it is intended for inspection only.  
-  请勿修改返回的 DRIVER_OBJECT 指针；它仅供查看。
+| Function | Description |
+|----------|-------------|
+| `IsPatchGuardEnabled` | Diagnostic helper that indicates whether PatchGuard is currently active. / 诊断辅助函数，指示 PatchGuard 当前是否激活。 |
+| `GetModuleSizeByName` | Returns the image size of a specified kernel module. / 返回指定内核模块的映像大小。 |
+| `IsAddressInModule` | Checks whether an address falls within the memory range of a specified loaded kernel module. / 检查地址是否在指定的已加载内核模块内存范围内。 |
+| `GetDriverObjectByName` | Returns the DRIVER_OBJECT pointer of a loaded driver by its service name. / 通过服务名返回已加载驱动的 DRIVER_OBJECT 指针。 |
+| `SafeReadKernelMemory` | Safely reads kernel memory with exception protection; returns an error instead of crashing on invalid addresses. / 带异常保护的安全内核内存读取；遇到无效地址时返回错误而非崩溃。 |
 
-Refer to the function documentation for details.  
-详情请参阅各函数文档。
+### 🔴 High / 高危（必须在内核调试模式下使用 / MUST be used in kernel debug mode）
+
+> ☠️ **These functions access or modify kernel internals directly. Using them while PatchGuard is active will cause a blue screen.**  
+> ☠️ **这些函数直接访问或修改内核内部结构。在 PatchGuard 活动状态下使用它们将导致蓝屏。**
+>
+> - **Must** run with a kernel debugger attached (PatchGuard is then disabled automatically).  
+>   **必须**在连接内核调试器的情况下运行（此时 PatchGuard 自动禁用）。
+> - Only for advanced kernel research and security tooling.  
+>   仅用于高级内核研究与安全工具开发。
+> - Never use in production or on machines with Secure Boot / HVCI enabled.  
+>   切勿在启用安全启动/HVCI 的生产环境或物理机上使用。
+
+| Function | Description |
+|----------|-------------|
+| `GetProcessObject` | Returns a direct EPROCESS pointer for any process ID, bypassing standard system calls (internally traverses `PsActiveProcessHead`). / 返回任意进程 ID 的直接 EPROCESS 指针，绕过标准系统调用（内部遍历 `PsActiveProcessHead`）。 |
+| `GetThreadObject` | Returns a direct ETHREAD pointer for any thread ID (internally uses `PspCidTable`). / 返回任意线程 ID 的直接 ETHREAD 指针（内部使用 `PspCidTable`）。 |
+| `WriteKernelMemory` | Safely writes to kernel‑mode memory (including read‑only sections) with built‑in write‑protection bypass and multi‑core safety. / 安全写入内核内存（包括只读区域），内置写保护绕过与多核同步。 |
+| `ForceUnloadDriver` | Forcefully unloads a loaded driver by its service name, even if it is marked as unloadable. / 通过服务名强制卸载已加载驱动，即使该驱动被标记为不可卸载。 |
+| `ForceCloseHandle` | Forcefully closes any handle in any process by directly modifying its handle table. / 直接修改目标进程句柄表，强制关闭任意句柄。 |
 
 ---
 
@@ -224,13 +223,13 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
 // 获取需要的导出函数
 PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
     GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
-PVOID (*IsAddressInModule)(PVOID, PCWSTR) = (PVOID (*)(PVOID, PCWSTR))
-    GetExportFromDriver(L"KernelBase.sys", "IsAddressInModule");
+PVOID (*GetProcessObject)(HANDLE) = (PVOID (*)(HANDLE))
+    GetExportFromDriver(L"KernelBase.sys", "GetProcessObject");
 // ... add others as needed
 
-if (GetKernelBase && IsAddressInModule) {
+if (GetKernelBase && GetProcessObject) {
     PVOID base = GetKernelBase();
-    BOOLEAN inside = IsAddressInModule((PVOID)0xFFFFF80012345678, L"hal.dll");
+    PEPROCESS eproc = GetProcessObject((HANDLE)4); // System process
     // ...
 }
 else {
