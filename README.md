@@ -1,15 +1,15 @@
 # KernelBase
 
-> A minimal Windows kernel driver that exports helper functions for kernel image base resolution, RVA‑to‑VA conversion, module export lookups, address validation, and more.  
-> 极简 Windows 内核驱动，导出内核基址解析、RVA/VA 转换、模块导出查找、地址验证等多种辅助函数。
+> A minimal Windows kernel driver that exports helper functions for kernel image analysis, module export resolution, and module information queries.  
+> 极简 Windows 内核驱动，导出内核映像分析、模块导出解析与模块信息查询等辅助函数。
 
 ---
 
 ## Why KernelBase? / 为什么需要 KernelBase？
 
-Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, and a way to resolve functions from other kernel modules. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
+Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, resolve functions from other kernel modules, and obtain module information. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
 
-很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，以及从其他内核模块解析函数。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
+很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，从其他内核模块解析函数，以及获取模块信息。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
 
 ---
 
@@ -29,6 +29,12 @@ Many kernel security tools, rootkit detection, or calling of non‑exported kern
   返回 `ntoskrnl.exe` 内指定名称的 PE 节区的基址和大小（如 `.text`, `.data`）。
 - `IsPatchGuardEnabled` – Diagnostic helper that indicates whether PatchGuard is currently active.  
   诊断辅助函数，指示 PatchGuard 当前是否激活。
+- `GetModuleBaseByName` – Returns the load base of a specified kernel module (e.g., `hal.dll`).  
+  返回指定内核模块的加载基址（如 `hal.dll`）。
+- `GetModuleSizeByName` – Returns the image size of a specified kernel module.  
+  返回指定内核模块的映像大小。
+- `GetSystemModuleCount` – Returns the total number of currently loaded kernel modules.  
+  返回当前已加载内核模块的总数。
 - Pure kernel exports – no device objects, no IOCTL.  
   纯内核导出，无设备对象，无 IOCTL。
 
@@ -191,20 +197,18 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
 **Then in your `DriverEntry` / 然后在你的 `DriverEntry` 里:**
 
 ```c
-// Retrieve all needed helpers
+// 获取需要的导出函数
 PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
     GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
-PVOID (*GetKernelExportByName)(PCWSTR, PCSTR) = (PVOID (*)(PCWSTR, PCSTR))
-    GetExportFromDriver(L"KernelBase.sys", "GetKernelExportByName");
-PVOID (*IsAddressInKernelImage)(PVOID) = (PVOID (*)(PVOID))
-    GetExportFromDriver(L"KernelBase.sys", "IsAddressInKernelImage");
-BOOLEAN (*IsPatchGuardEnabled)(void) = (BOOLEAN (*)(void))
-    GetExportFromDriver(L"KernelBase.sys", "IsPatchGuardEnabled");
-// ... add others as needed
+PVOID (*GetModuleBaseByName)(PCWSTR) = (PVOID (*)(PCWSTR))
+    GetExportFromDriver(L"KernelBase.sys", "GetModuleBaseByName");
+ULONG (*GetSystemModuleCount)(void) = (ULONG (*)(void))
+    GetExportFromDriver(L"KernelBase.sys", "GetSystemModuleCount");
 
-if (GetKernelBase && GetKernelExportByName) {
+if (GetKernelBase && GetModuleBaseByName && GetSystemModuleCount) {
     PVOID kernelBase = GetKernelBase();
-    PVOID someFunc = GetKernelExportByName(L"hal.dll", "HalGetBusData");
+    PVOID halBase = GetModuleBaseByName(L"hal.dll");
+    ULONG count = GetSystemModuleCount();
     // ...
 }
 else {
