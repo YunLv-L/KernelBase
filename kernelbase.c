@@ -1,9 +1,20 @@
 #include "kernelbase.h"
 #include <ntimage.h>
+#include <ntstrsafe.h>
+
+NTSYSAPI NTSTATUS NTAPI ObReferenceObjectByName(
+    PUNICODE_STRING ObjectName,
+    ULONG Attributes,
+    PACCESS_STATE AccessState,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_TYPE ObjectType,
+    KPROCESSOR_MODE AccessMode,
+    PVOID ParseContext,
+    PVOID *Object
+);
 
 #define SystemModuleInformation 0x0B
 
-// 内部辅助：获取 ZwQuerySystemInformation 指针
 static NTSTATUS (*GetZwQuerySystemInformation(void))(ULONG, PVOID, ULONG, PULONG)
 {
     UNICODE_STRING routineName;
@@ -148,11 +159,9 @@ BOOLEAN IsPatchGuardEnabled(void)
 
 // ========== v1.3.0 新增函数 ==========
 
-// 获取指定模块基址
 PVOID GetModuleBaseByName(PCWSTR ModuleName)
 {
     if (!ModuleName) return NULL;
-
     NTSTATUS status;
     ULONG size = 0;
     PRTL_PROCESS_MODULES modules = NULL;
@@ -182,11 +191,9 @@ PVOID GetModuleBaseByName(PCWSTR ModuleName)
     return targetBase;
 }
 
-// 获取指定模块大小
 ULONG GetModuleSizeByName(PCWSTR ModuleName)
 {
     if (!ModuleName) return 0;
-
     NTSTATUS status;
     ULONG size = 0;
     PRTL_PROCESS_MODULES modules = NULL;
@@ -216,7 +223,6 @@ ULONG GetModuleSizeByName(PCWSTR ModuleName)
     return moduleSize;
 }
 
-// 获取已加载内核模块总数
 ULONG GetSystemModuleCount(void)
 {
     NTSTATUS status;
@@ -238,4 +244,87 @@ ULONG GetSystemModuleCount(void)
     }
     ExFreePoolWithTag(modules, 'cKwK');
     return count;
+}
+
+// ========== v1.4.0 新增函数 ==========
+
+static PRTL_PROCESS_MODULE_INFORMATION FindModuleEntryByName(PCWSTR ModuleName, PRTL_PROCESS_MODULES *ModulesOut)
+{
+    NTSTATUS status;
+    ULONG size = 0;
+    PRTL_PROCESS_MODULES modules = NULL;
+    NTSTATUS (*pZwQuerySystemInformation)(ULONG, PVOID, ULONG, PULONG) = GetZwQuerySystemInformation();
+    if (!pZwQuerySystemInformation) return NULL;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &size);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) return NULL;
+
+    modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, size, 'mKwK');
+    if (!modules) return NULL;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, modules, size, NULL);
+    if (!NT_SUCCESS(status)) { ExFreePoolWithTag(modules, 'mKwK'); return NULL; }
+
+    for (ULONG i = 0; i < modules->NumberOfModules; ++i) {
+        PCWSTR fullPath = (PCWSTR)modules->Modules[i].FullPathName;
+        PCWSTR fileName = wcsrchr(fullPath, L'\\');
+        fileName = fileName ? (fileName + 1) : fullPath;
+        if (_wcsicmp(fileName, ModuleName) == 0) {
+            *ModulesOut = modules;
+            return &modules->Modules[i];
+        }
+    }
+    ExFreePoolWithTag(modules, 'mKwK');
+    return NULL;
+}
+
+BOOLEAN IsAddressInModule(PVOID Address, PCWSTR ModuleName)
+{
+    if (!Address || !ModuleName) return FALSE;
+    PRTL_PROCESS_MODULES modules = NULL;
+    PRTL_PROCESS_MODULE_INFORMATION entry = FindModuleEntryByName(ModuleName, &modules);
+    if (!entry) return FALSE;
+    ULONG_PTR start = (ULONG_PTR)entry->ImageBase;
+    ULONG_PTR end = start + entry->ImageSize;
+    BOOLEAN result = ((ULONG_PTR)Address >= start && (ULONG_PTR)Address < end);
+    ExFreePoolWithTag(modules, 'mKwK');
+    return result;
+}
+
+NTSTATUS SafeReadKernelMemory(PVOID Address, PVOID Buffer, SIZE_T Size, PSIZE_T BytesRead)
+{
+    if (!Address || !Buffer || Size == 0) return STATUS_INVALID_PARAMETER;
+    SIZE_T copied = 0;
+    NTSTATUS status = STATUS_SUCCESS;
+    __try {
+        RtlCopyMemory(Buffer, Address, Size);
+        copied = Size;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        status = GetExceptionCode();
+    }
+    if (BytesRead) *BytesRead = copied;
+    return status;
+}
+
+PDRIVER_OBJECT GetDriverObjectByName(PCWSTR DriverName)
+{
+    if (!DriverName) return NULL;
+    UNICODE_STRING name;
+    RtlInitUnicodeString(&name, DriverName);
+    PDRIVER_OBJECT driver = NULL;
+    if (NT_SUCCESS(ObReferenceObjectByName(
+        &name,
+        OBJ_CASE_INSENSITIVE,
+        NULL,
+        0,
+        NULL,               // ObjectType 传 NULL，不进行类型检查
+        KernelMode,
+        NULL,
+        (PVOID*)&driver
+    ))) {
+        ObDereferenceObject(driver);
+        return driver;
+    }
+    return NULL;
 }

@@ -35,3 +35,8 @@ BOOLEAN IsPatchGuardEnabled(void);
 PVOID GetModuleBaseByName(PCWSTR ModuleName);
 ULONG GetModuleSizeByName(PCWSTR ModuleName);
 ULONG GetSystemModuleCount(void);
+
+// v1.4.0
+BOOLEAN IsAddressInModule(PVOID Address, PCWSTR ModuleName);
+NTSTATUS SafeReadKernelMemory(PVOID Address, PVOID Buffer, SIZE_T Size, PSIZE_T BytesRead);
+PDRIVER_OBJECT GetDriverObjectByName(PCWSTR DriverName);

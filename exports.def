@@ -9,3 +9,6 @@ EXPORTS
     GetModuleBaseByName
     GetModuleSizeByName
     GetSystemModuleCount
+    IsAddressInModule
+    SafeReadKernelMemory
+    GetDriverObjectByName

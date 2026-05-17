@@ -14,13 +14,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     PVOID base = GetKernelBase();
     DbgPrint("[KernelBase] Loaded, kernel base: 0x%p\n", base);
 
-    // 可选：快速自检 v1.3.0 新函数
-    ULONG moduleCount = GetSystemModuleCount();
-    DbgPrint("[KernelBase] Loaded modules: %lu\n", moduleCount);
-
-    PVOID halBase = GetModuleBaseByName(L"hal.dll");
-    ULONG halSize = GetModuleSizeByName(L"hal.dll");
-    DbgPrint("[KernelBase] hal.dll base: 0x%p, size: 0x%lx\n", halBase, halSize);
-
+    // 可选自检
+    BOOLEAN inHal = IsAddressInModule(base, L"hal.dll"); // 基址当然不在 hal 内，应返回 FALSE
+    DbgPrint("[KernelBase] IsAddressInModule(ntos base, hal.dll) = %d (expected 0)\n", inHal);
     return STATUS_SUCCESS;
 }
