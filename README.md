@@ -240,6 +240,8 @@ This project is licensed under the **Apache License 2.0**.
 本项目采用 **Apache License 2.0** 授权。  
 See the [LICENSE](LICENSE) file for the full license text.  
 完整许可证文本请查看 [LICENSE](LICENSE) 文件。
+This project includes a [NOTICE](NOTICE) file with attribution requirements.  
+本项目包含 [NOTICE](NOTICE) 文件，其中说明了署名要求。
 
 ---
 
