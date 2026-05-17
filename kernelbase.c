@@ -11,7 +11,7 @@ static NTSTATUS (*GetZwQuerySystemInformation(void))(ULONG, PVOID, ULONG, PULONG
     return (NTSTATUS (*)(ULONG, PVOID, ULONG, PULONG))MmGetSystemRoutineAddress(&routineName);
 }
 
-// ========== 原有函数 ==========
+// ========== v1.0.0 原有函数 ==========
 
 PVOID GetKernelBase(void)
 {
@@ -45,7 +45,6 @@ PVOID GetKernelVaByRva(ULONG_PTR Rva)
 
 // ========== v1.2.0 新增函数 ==========
 
-// 1. 从任意内核模块获取导出函数地址
 PVOID GetKernelExportByName(PCWSTR ModuleName, PCSTR FunctionName)
 {
     NTSTATUS status;
@@ -99,7 +98,6 @@ PVOID GetKernelExportByName(PCWSTR ModuleName, PCSTR FunctionName)
     return funcAddr;
 }
 
-// 2. 判断地址是否在 ntoskrnl 映像内
 BOOLEAN IsAddressInKernelImage(PVOID Address)
 {
     PVOID kernelBase = GetKernelBase();
@@ -114,13 +112,11 @@ BOOLEAN IsAddressInKernelImage(PVOID Address)
     return (addr >= start && addr < end);
 }
 
-// 3. 判断地址是否属于内核空间
 BOOLEAN IsKernelAddress(PVOID Address)
 {
     return ((ULONG_PTR)Address >= 0xFFFF800000000000ULL);
 }
 
-// 4. 获取内核节区信息
 PVOID GetKernelSectionByName(PCSTR SectionName, PULONG SectionSize)
 {
     PVOID kernelBase = GetKernelBase();
@@ -139,15 +135,107 @@ PVOID GetKernelSectionByName(PCSTR SectionName, PULONG SectionSize)
     return NULL;
 }
 
-// 5. 诊断 PatchGuard 是否激活
 BOOLEAN IsPatchGuardEnabled(void)
 {
-    // 获取 KdDebuggerEnabled 指针，若调试器开启则 PatchGuard 自动禁用
     UNICODE_STRING varName;
     RtlInitUnicodeString(&varName, L"KdDebuggerEnabled");
     PBOOLEAN pKdDebuggerEnabled = (PBOOLEAN)MmGetSystemRoutineAddress(&varName);
     if (pKdDebuggerEnabled) {
         return (*pKdDebuggerEnabled == FALSE);
     }
-    return TRUE; // 获取失败则保守认为 PatchGuard 已启用
+    return TRUE;
+}
+
+// ========== v1.3.0 新增函数 ==========
+
+// 获取指定模块基址
+PVOID GetModuleBaseByName(PCWSTR ModuleName)
+{
+    if (!ModuleName) return NULL;
+
+    NTSTATUS status;
+    ULONG size = 0;
+    PRTL_PROCESS_MODULES modules = NULL;
+    PVOID targetBase = NULL;
+    NTSTATUS (*pZwQuerySystemInformation)(ULONG, PVOID, ULONG, PULONG) = GetZwQuerySystemInformation();
+    if (!pZwQuerySystemInformation) return NULL;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &size);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) return NULL;
+
+    modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, size, 'mKwK');
+    if (!modules) return NULL;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, modules, size, NULL);
+    if (!NT_SUCCESS(status)) { ExFreePoolWithTag(modules, 'mKwK'); return NULL; }
+
+    for (ULONG i = 0; i < modules->NumberOfModules; ++i) {
+        PCWSTR fullPath = (PCWSTR)modules->Modules[i].FullPathName;
+        PCWSTR fileName = wcsrchr(fullPath, L'\\');
+        fileName = fileName ? (fileName + 1) : fullPath;
+        if (_wcsicmp(fileName, ModuleName) == 0) {
+            targetBase = modules->Modules[i].ImageBase;
+            break;
+        }
+    }
+    ExFreePoolWithTag(modules, 'mKwK');
+    return targetBase;
+}
+
+// 获取指定模块大小
+ULONG GetModuleSizeByName(PCWSTR ModuleName)
+{
+    if (!ModuleName) return 0;
+
+    NTSTATUS status;
+    ULONG size = 0;
+    PRTL_PROCESS_MODULES modules = NULL;
+    ULONG moduleSize = 0;
+    NTSTATUS (*pZwQuerySystemInformation)(ULONG, PVOID, ULONG, PULONG) = GetZwQuerySystemInformation();
+    if (!pZwQuerySystemInformation) return 0;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &size);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) return 0;
+
+    modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, size, 'sKwK');
+    if (!modules) return 0;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, modules, size, NULL);
+    if (!NT_SUCCESS(status)) { ExFreePoolWithTag(modules, 'sKwK'); return 0; }
+
+    for (ULONG i = 0; i < modules->NumberOfModules; ++i) {
+        PCWSTR fullPath = (PCWSTR)modules->Modules[i].FullPathName;
+        PCWSTR fileName = wcsrchr(fullPath, L'\\');
+        fileName = fileName ? (fileName + 1) : fullPath;
+        if (_wcsicmp(fileName, ModuleName) == 0) {
+            moduleSize = modules->Modules[i].ImageSize;
+            break;
+        }
+    }
+    ExFreePoolWithTag(modules, 'sKwK');
+    return moduleSize;
+}
+
+// 获取已加载内核模块总数
+ULONG GetSystemModuleCount(void)
+{
+    NTSTATUS status;
+    ULONG size = 0;
+    PRTL_PROCESS_MODULES modules = NULL;
+    ULONG count = 0;
+    NTSTATUS (*pZwQuerySystemInformation)(ULONG, PVOID, ULONG, PULONG) = GetZwQuerySystemInformation();
+    if (!pZwQuerySystemInformation) return 0;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, NULL, 0, &size);
+    if (status != STATUS_INFO_LENGTH_MISMATCH) return 0;
+
+    modules = (PRTL_PROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, size, 'cKwK');
+    if (!modules) return 0;
+
+    status = pZwQuerySystemInformation(SystemModuleInformation, modules, size, NULL);
+    if (NT_SUCCESS(status)) {
+        count = modules->NumberOfModules;
+    }
+    ExFreePoolWithTag(modules, 'cKwK');
+    return count;
 }

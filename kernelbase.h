@@ -20,13 +20,18 @@ typedef struct _RTL_PROCESS_MODULES {
     RTL_PROCESS_MODULE_INFORMATION Modules[1];
 } RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
-// 原有
+// v1.0.0
 PVOID GetKernelBase(void);
 PVOID GetKernelVaByRva(ULONG_PTR Rva);
 
-// v1.2.0 新增
+// v1.2.0
 PVOID GetKernelExportByName(PCWSTR ModuleName, PCSTR FunctionName);
 BOOLEAN IsAddressInKernelImage(PVOID Address);
 BOOLEAN IsKernelAddress(PVOID Address);
 PVOID GetKernelSectionByName(PCSTR SectionName, PULONG SectionSize);
 BOOLEAN IsPatchGuardEnabled(void);
+
+// v1.3.0
+PVOID GetModuleBaseByName(PCWSTR ModuleName);
+ULONG GetModuleSizeByName(PCWSTR ModuleName);
+ULONG GetSystemModuleCount(void);

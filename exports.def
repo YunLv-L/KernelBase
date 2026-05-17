@@ -6,3 +6,6 @@ EXPORTS
     IsKernelAddress
     GetKernelSectionByName
     IsPatchGuardEnabled
+    GetModuleBaseByName
+    GetModuleSizeByName
+    GetSystemModuleCount
