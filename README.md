@@ -1,15 +1,15 @@
 # KernelBase
 
-> A minimal Windows kernel driver that exports helper functions for kernel image analysis, module export resolution, and module information queries.  
-> 极简 Windows 内核驱动，导出内核映像分析、模块导出解析与模块信息查询等辅助函数。
+> A lightweight Windows kernel driver that exports helpers for kernel image analysis, module export resolution, module information queries, and safe memory access.  
+> 轻量 Windows 内核驱动，导出内核映像分析、模块导出解析、模块信息查询及安全内存访问等辅助函数。
 
 ---
 
 ## Why KernelBase? / 为什么需要 KernelBase？
 
-Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, resolve functions from other kernel modules, and obtain module information. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
+Many kernel security tools, rootkit detection, or calling of non‑exported kernel functions require the base address of `ntoskrnl.exe`, the ability to convert relative offsets into absolute addresses, resolve functions from other kernel modules, obtain module information, and safely read kernel memory. This driver isolates those steps into a standalone module, so other drivers only need to dynamically obtain the exported helpers – no need to reinvent the wheel.
 
-很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，从其他内核模块解析函数，以及获取模块信息。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
+很多内核安全工具、Rootkit 检测，或是调用未导出的内核函数，都需要先拿到 `ntoskrnl.exe` 的基址，将相对偏移转换为绝对地址，从其他内核模块解析函数，获取模块信息，以及安全地读取内核内存。这个驱动把这些步骤抽离成一个独立模块，其他驱动只需动态获取这些辅助函数就行了，不用重复造轮子。
 
 ---
 
@@ -35,8 +35,32 @@ Many kernel security tools, rootkit detection, or calling of non‑exported kern
   返回指定内核模块的映像大小。
 - `GetSystemModuleCount` – Returns the total number of currently loaded kernel modules.  
   返回当前已加载内核模块的总数。
+- `IsAddressInModule` – Checks whether an address falls within the memory range of a specified loaded kernel module.  
+  检查地址是否在指定的已加载内核模块内存范围内。
+- `SafeReadKernelMemory` – Safely reads kernel memory with exception protection; returns an error instead of crashing on invalid addresses.  
+  带异常保护的安全内核内存读取；遇到无效地址时返回错误而非崩溃。
+- `GetDriverObjectByName` – Returns the DRIVER_OBJECT pointer of a loaded driver by its service name.  
+  通过服务名返回已加载驱动的 DRIVER_OBJECT 指针。
 - Pure kernel exports – no device objects, no IOCTL.  
   纯内核导出，无设备对象，无 IOCTL。
+
+## ⚠️ High‑Risk Functions / 高危函数警告
+
+Starting from v1.4.0, some exported functions access low‑level kernel structures and may cause system instability if misused.  
+从 v1.4.0 开始，部分导出函数将访问底层内核结构，若使用不当可能导致系统不稳定。
+
+**`SafeReadKernelMemory`** is protected against most invalid addresses, but reading from paged‑out memory at elevated IRQL can still cause a crash.  
+**`SafeReadKernelMemory`** 已对无效地址进行保护，但在高 IRQL 下读取已换出的分页内存仍可能引发崩溃。
+
+- Always test in a debugging environment with crash dump enabled.  
+  请始终在已启用崩溃转储的调试环境中测试。
+- Keep IRQL at PASSIVE_LEVEL or APC_LEVEL when using SafeReadKernelMemory.  
+  使用 SafeReadKernelMemory 时，请保持 IRQL 为 PASSIVE_LEVEL 或 APC_LEVEL。
+- Do not modify the returned DRIVER_OBJECT pointer; it is intended for inspection only.  
+  请勿修改返回的 DRIVER_OBJECT 指针；它仅供查看。
+
+Refer to the function documentation for details.  
+详情请参阅各函数文档。
 
 ---
 
@@ -200,15 +224,13 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
 // 获取需要的导出函数
 PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
     GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
-PVOID (*GetModuleBaseByName)(PCWSTR) = (PVOID (*)(PCWSTR))
-    GetExportFromDriver(L"KernelBase.sys", "GetModuleBaseByName");
-ULONG (*GetSystemModuleCount)(void) = (ULONG (*)(void))
-    GetExportFromDriver(L"KernelBase.sys", "GetSystemModuleCount");
+PVOID (*IsAddressInModule)(PVOID, PCWSTR) = (PVOID (*)(PVOID, PCWSTR))
+    GetExportFromDriver(L"KernelBase.sys", "IsAddressInModule");
+// ... add others as needed
 
-if (GetKernelBase && GetModuleBaseByName && GetSystemModuleCount) {
-    PVOID kernelBase = GetKernelBase();
-    PVOID halBase = GetModuleBaseByName(L"hal.dll");
-    ULONG count = GetSystemModuleCount();
+if (GetKernelBase && IsAddressInModule) {
+    PVOID base = GetKernelBase();
+    BOOLEAN inside = IsAddressInModule((PVOID)0xFFFFF80012345678, L"hal.dll");
     // ...
 }
 else {
