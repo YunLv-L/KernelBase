@@ -1,6 +1,6 @@
 # KernelBase
 
-> A lightweight Windows kernel driver that exports helpers for kernel image analysis, module export resolution, module information queries, safe memory access, and access to un‑exported kernel internals.  
+> A lightweight Windows kernel driver that exports helper functions for kernel image analysis, module export resolution, module information queries, safe memory access, and access to un‑exported kernel internals.  
 > 轻量 Windows 内核驱动，导出内核映像分析、模块导出解析、模块信息查询、安全内存访问及未导出内核内部函数访问等辅助函数。
 
 ---
@@ -15,51 +15,17 @@ Many kernel security tools, rootkit detection, or calling of non‑exported kern
 
 ## Features / 功能
 
-Functions are categorized by risk level to help you use them safely.  
-函数按风险等级分类，以帮助你安全使用。
+Functions are categorized by risk level. For full per‑function documentation, see the [Wiki API Reference](https://github.com/YunLv-L/KernelBase/wiki/API-Reference).  
+函数按风险等级分类。每个函数的完整文档请见 [Wiki API 参考](https://github.com/YunLv-L/KernelBase/wiki/API-Reference)。
 
-### ✅ Safe / 安全（可任意调用 / Safe to call anytime）
+| Risk Level / 风险等级 | Count / 数量 | Description / 说明 |
+|-----------------------|--------------|-------------------|
+| ✅ **Safe / 安全** | 8 | Read‑only operations, safe to call anytime. / 只读操作，可随时调用。 |
+| ⚠️ **Moderate / 中危** | 5 | Returns sensitive pointers or requires IRQL caution. / 返回敏感指针或需注意 IRQL。 |
+| 🔴 **High / 高危** | 4 | **Must** attach a kernel debugger (PatchGuard disabled). / **必须**连接内核调试器（PatchGuard 禁用）。 |
 
-| Function | Description |
-|----------|-------------|
-| `GetKernelBase` | Returns the base address of `ntoskrnl.exe`. / 获取 `ntoskrnl.exe` 的内存基址。 |
-| `GetKernelVaByRva` | Converts a relative virtual address (RVA) inside the kernel image to an absolute virtual address (VA). / 将内核映像内的相对虚拟地址（RVA）转换为绝对虚拟地址（VA）。 |
-| `GetKernelExportByName` | Retrieves the absolute address of any exported function from a loaded kernel module (e.g., `hal.dll`, `win32k.sys`). / 从任意已加载的内核模块获取导出函数的绝对地址（如 `hal.dll`、`win32k.sys`）。 |
-| `IsAddressInKernelImage` | Checks whether a given address falls within the memory range of `ntoskrnl.exe`. / 检查给定地址是否位于 `ntoskrnl.exe` 的内存范围内。 |
-| `IsKernelAddress` | Checks whether an address belongs to kernel space (x64). / 检查地址是否属于内核空间（x64）。 |
-| `GetKernelSectionByName` | Returns the base address and size of a named PE section within `ntoskrnl.exe` (e.g., `.text`, `.data`). / 返回 `ntoskrnl.exe` 内指定名称的 PE 节区的基址和大小（如 `.text`, `.data`）。 |
-| `GetModuleBaseByName` | Returns the load base of a specified kernel module (e.g., `hal.dll`). / 返回指定内核模块的加载基址（如 `hal.dll`）。 |
-| `GetSystemModuleCount` | Returns the total number of currently loaded kernel modules. / 返回当前已加载内核模块的总数。 |
-
-### ⚠️ Moderate / 中危（返回敏感对象或需注意使用条件 / Returns sensitive objects or requires caution）
-
-| Function | Description |
-|----------|-------------|
-| `IsPatchGuardEnabled` | Diagnostic helper that indicates whether PatchGuard is currently active. / 诊断辅助函数，指示 PatchGuard 当前是否激活。 |
-| `GetModuleSizeByName` | Returns the image size of a specified kernel module. / 返回指定内核模块的映像大小。 |
-| `IsAddressInModule` | Checks whether an address falls within the memory range of a specified loaded kernel module. / 检查地址是否在指定的已加载内核模块内存范围内。 |
-| `GetDriverObjectByName` | Returns the DRIVER_OBJECT pointer of a loaded driver by its service name. / 通过服务名返回已加载驱动的 DRIVER_OBJECT 指针。 |
-| `SafeReadKernelMemory` | Safely reads kernel memory with exception protection; returns an error instead of crashing on invalid addresses. / 带异常保护的安全内核内存读取；遇到无效地址时返回错误而非崩溃。 |
-
-### 🔴 High / 高危（必须在内核调试模式下使用 / MUST be used in kernel debug mode）
-
-> ☠️ **These functions access or modify kernel internals directly. Using them while PatchGuard is active will cause a blue screen.**  
-> ☠️ **这些函数直接访问或修改内核内部结构。在 PatchGuard 活动状态下使用它们将导致蓝屏。**
->
-> - **Must** run with a kernel debugger attached (PatchGuard is then disabled automatically).  
->   **必须**在连接内核调试器的情况下运行（此时 PatchGuard 自动禁用）。
-> - Only for advanced kernel research and security tooling.  
->   仅用于高级内核研究与安全工具开发。
-> - Never use in production or on machines with Secure Boot / HVCI enabled.  
->   切勿在启用安全启动/HVCI 的生产环境或物理机上使用。
-
-| Function | Description |
-|----------|-------------|
-| `GetProcessObject` | Returns a direct EPROCESS pointer for any process ID, bypassing standard system calls (internally traverses `PsActiveProcessHead`). / 返回任意进程 ID 的直接 EPROCESS 指针，绕过标准系统调用（内部遍历 `PsActiveProcessHead`）。 |
-| `GetThreadObject` | Returns a direct ETHREAD pointer for any thread ID (internally uses `PspCidTable`). / 返回任意线程 ID 的直接 ETHREAD 指针（内部使用 `PspCidTable`）。 |
-| `WriteKernelMemory` | Safely writes to kernel‑mode memory (including read‑only sections) with built‑in write‑protection bypass and multi‑core safety. / 安全写入内核内存（包括只读区域），内置写保护绕过与多核同步。 |
-| `ForceUnloadDriver` | Forcefully unloads a loaded driver by its service name, even if it is marked as unloadable. / 通过服务名强制卸载已加载驱动，即使该驱动被标记为不可卸载。 |
-| `ForceCloseHandle` | Forcefully closes any handle in any process by directly modifying its handle table. / 直接修改目标进程句柄表，强制关闭任意句柄。 |
+> For detailed risk level definitions and usage preconditions, see [Risk Levels Explained](https://github.com/YunLv-L/KernelBase/wiki/Risk-Levels-Explained).  
+> 详细风险等级定义和使用前提请见 [风险等级说明](https://github.com/YunLv-L/KernelBase/wiki/Risk-Levels-Explained)。
 
 ---
 
@@ -88,6 +54,9 @@ Functions are categorized by risk level to help you use them safely.
    ```
 4. The compiled driver will be located at `bin\x64\Debug\KernelBase.sys`  
    编译好的驱动会放在 `bin\x64\Debug\KernelBase.sys`。
+
+For a complete walkthrough, see the [Quick Start Wiki](https://github.com/YunLv-L/KernelBase/wiki/Quick-Start).  
+完整操作指南请见 [快速开始 Wiki](https://github.com/YunLv-L/KernelBase/wiki/Quick-Start)。
 
 ---
 
@@ -223,22 +192,16 @@ PVOID GetExportFromDriver(PCWSTR DriverFileName, PCSTR ExportName)
 // 获取需要的导出函数
 PVOID (*GetKernelBase)(void) = (PVOID (*)(void))
     GetExportFromDriver(L"KernelBase.sys", "GetKernelBase");
-PVOID (*GetProcessObject)(HANDLE) = (PVOID (*)(HANDLE))
-    GetExportFromDriver(L"KernelBase.sys", "GetProcessObject");
 // ... add others as needed
 
-if (GetKernelBase && GetProcessObject) {
+if (GetKernelBase) {
     PVOID base = GetKernelBase();
-    PEPROCESS eproc = GetProcessObject((HANDLE)4); // System process
-    // ...
-}
-else {
-    return STATUS_NOT_FOUND;
+    // Now you can use it...
 }
 ```
 
-> **Note**: You still need to make sure your driver loads **after** `KernelBase.sys`, otherwise it won't be found in the module list. Use service dependency.  
-> **注意**：你仍然需要确保你的驱动在 `KernelBase.sys` **之后**加载，否则模块列表中找不到它。请使用服务依赖。
+For more examples and a detailed explanation, see the [Wiki page on calling from your driver](https://github.com/YunLv-L/KernelBase/wiki/Calling-KernelBase-from-Your-Driver).  
+更多示例和详细解释，请见 [Wiki 调用页面](https://github.com/YunLv-L/KernelBase/wiki/Calling-KernelBase-from-Your-Driver)。
 
 ---
 
@@ -250,6 +213,24 @@ Calling drivers **must** be loaded after `KernelBase.sys`. You can enforce this 
 ```cmd
 sc create YourDriver type= kernel binPath= "..." depend= KernelBase
 ```
+
+---
+
+## 📚 Wiki / 文档
+
+For detailed guides, API reference, FAQ, and more:  
+更详细的指南、API 参考、常见问题等：
+
+- [Home / 首页](https://github.com/YunLv-L/KernelBase/wiki)
+- [Quick Start / 快速开始](https://github.com/YunLv-L/KernelBase/wiki/Quick-Start)
+- [API Reference / API 参考](https://github.com/YunLv-L/KernelBase/wiki/API-Reference)
+- [Calling from Your Driver / 从你的驱动调用](https://github.com/YunLv-L/KernelBase/wiki/Calling-KernelBase-from-Your-Driver)
+- [Risk Levels Explained / 风险等级说明](https://github.com/YunLv-L/KernelBase/wiki/Risk-Levels-Explained)
+- [FAQ / 常见问题](https://github.com/YunLv-L/KernelBase/wiki/FAQ)
+- [Version History / 版本历史](https://github.com/YunLv-L/KernelBase/wiki/Version-History)
+- [Demo Drivers / 演示驱动](https://github.com/YunLv-L/KernelBase/wiki/Demo-Drivers)
+- [Contributing / 贡献指南](https://github.com/YunLv-L/KernelBase/wiki/Contributing)
+- [Roadmap / 未来计划](https://github.com/YunLv-L/KernelBase/wiki/Roadmap)
 
 ---
 
